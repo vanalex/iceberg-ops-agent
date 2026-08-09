@@ -1,0 +1,99 @@
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: iceberg-minio
+    command:
+      - server
+      - /data
+      - --console-address
+      - ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_root
+      MINIO_ROOT_PASSWORD: m1n1opwd
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: iceberg-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        mc alias set local http://minio:9000 minio_root m1n1opwd
+        mc mb --ignore-existing local/warehouse
+        echo "MinIO warehouse bucket ready"
+
+  polaris:
+    image: apache/polaris:latest
+    container_name: iceberg-polaris
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      AWS_REGION: us-west-2
+      AWS_ACCESS_KEY_ID: minio_root
+      AWS_SECRET_ACCESS_KEY: m1n1opwd
+
+      POLARIS_BOOTSTRAP_CREDENTIALS: POLARIS,root,s3cr3t
+      polaris.realm-context.realms: POLARIS
+
+      quarkus.otel.sdk.disabled: "true"
+    ports:
+      - "8181:8181"
+      - "8182:8182"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8182/q/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  polaris-init:
+    image: alpine/curl:8.19.0
+    container_name: iceberg-polaris-init
+    depends_on:
+      polaris:
+        condition: service_healthy
+    environment:
+      POLARIS_URL: http://polaris:8181
+      CLIENT_ID: root
+      CLIENT_SECRET: s3cr3t
+      CATALOG_NAME: lakehouse
+    volumes:
+      - ./scripts/init-polaris.sh:/scripts/init-polaris.sh:ro
+    entrypoint: /bin/sh
+    command:
+      - /scripts/init-polaris.sh
+
+  polaris-console:
+    image: georgelza/polaris-console:latest
+    container_name: iceberg-polaris-console
+    depends_on:
+      polaris:
+        condition: service_healthy
+      polaris-init:
+        condition: service_completed_successfully
+    environment:
+      VITE_POLARIS_API_URL: http://polaris:8181
+      VITE_POLARIS_REALM: POLARIS
+      VITE_POLARIS_PRINCIPAL_SCOPE: PRINCIPAL_ROLE:ALL
+      VITE_OAUTH_TOKEN_URL: http://polaris:8181/api/catalog/v1/oauth/tokens
+    ports:
+      - "8080:80"
+
+volumes:
+  minio-data:

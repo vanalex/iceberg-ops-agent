@@ -7,6 +7,10 @@ CLIENT_ID="${CLIENT_ID:-root}"
 CLIENT_SECRET="${CLIENT_SECRET:-s3cr3t}"
 CATALOG_NAME="${CATALOG_NAME:-lakehouse}"
 POLARIS_REALM="${POLARIS_REALM:-POLARIS}"
+DEFAULT_BASE_LOCATION="${DEFAULT_BASE_LOCATION:-s3://warehouse}"
+S3_ENDPOINT="${S3_ENDPOINT:-http://localhost:9000}"
+S3_ENDPOINT_INTERNAL="${S3_ENDPOINT_INTERNAL:-http://minio:9000}"
+AWS_REGION="${AWS_REGION:-us-west-2}"
 
 echo "Initializing Apache Polaris..."
 
@@ -69,12 +73,17 @@ curl \
       \"name\": \"${CATALOG_NAME}\",
       \"type\": \"INTERNAL\",
       \"properties\": {
-        \"default-base-location\": \"s3://warehouse\"
+        \"default-base-location\": \"${DEFAULT_BASE_LOCATION}\"
       },
       \"storageConfigInfo\": {
         \"storageType\": \"S3\",
+        \"region\": \"${AWS_REGION}\",
+        \"endpoint\": \"${S3_ENDPOINT}\",
+        \"endpointInternal\": \"${S3_ENDPOINT_INTERNAL}\",
+        \"pathStyleAccess\": true,
+        \"stsUnavailable\": true,
         \"allowedLocations\": [
-          \"s3://warehouse\"
+          \"${DEFAULT_BASE_LOCATION}\"
         ]
       }
     }

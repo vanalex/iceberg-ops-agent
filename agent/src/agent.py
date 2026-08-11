@@ -27,10 +27,20 @@ def build_maintenance_prompt(analysis_result: dict[str, Any]) -> str:
 def create_iceberg_ops_agent(model: str | None = None):
     load_dotenv()
     return create_agent(
-        model=model or os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
+        model=_resolve_model(model),
         tools=[],
         system_prompt=SYSTEM_PROMPT,
     )
+
+
+def _resolve_model(model: str | None = None) -> str:
+    if model is not None and model.strip():
+        return model
+
+    env_model = os.getenv("OPENAI_MODEL")
+    if env_model and env_model.strip():
+        return env_model
+    return DEFAULT_MODEL
 
 
 def analyze_maintenance_recommendation(

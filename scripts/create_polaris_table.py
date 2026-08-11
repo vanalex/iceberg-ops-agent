@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+script_dir = Path(__file__).resolve().parent
+if str(script_dir) not in sys.path:
+    sys.path.insert(0, str(script_dir))
+
 from polaris_spark import create_spark_session, env, parse_table_specs
 
 

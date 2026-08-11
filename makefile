@@ -24,7 +24,7 @@ CURL := curl --silent --show-error --fail-with-body
 
 .PHONY: help token catalogs catalog configure-catalog-storage principals \
         principal-roles catalog-roles health namespaces tables create-table \
-        list-spark-tables table-health clean
+        list-spark-tables table-health scan-table-health plan-table-maintenance clean
 
 help:
 	@echo "Polaris administration"
@@ -43,6 +43,10 @@ help:
 	@echo "  make create-table CATALOG=lakehouse TABLE_SPECS=demo.events,demo.orders"
 	@echo "  make list-spark-tables CATALOG=lakehouse"
 	@echo "  make table-health CATALOG=lakehouse NAMESPACE=default TABLE=events"
+	@echo "  make scan-table-health CATALOG=lakehouse"
+	@echo "  make scan-table-health CATALOG=lakehouse TABLE_SPECS=demo.events,analytics.sessions"
+	@echo "  make plan-table-maintenance CATALOG=lakehouse"
+	@echo "  make plan-table-maintenance CATALOG=lakehouse TABLE_SPECS=demo.events"
 
 
 # ---------------------------------------------------------
@@ -196,7 +200,8 @@ tables:
 
 
 create-table: configure-catalog-storage
-	@POLARIS_URL="$(POLARIS_URL)" \
+	@PYTHONPATH="$(CURDIR)" \
+	POLARIS_URL="$(POLARIS_URL)" \
 	POLARIS_CLIENT_ID="$(POLARIS_CLIENT_ID)" \
 	POLARIS_CLIENT_SECRET="$(POLARIS_CLIENT_SECRET)" \
 	POLARIS_REALM="$(POLARIS_REALM)" \
@@ -207,11 +212,12 @@ create-table: configure-catalog-storage
 	ICEBERG_SPARK_RUNTIME="$(ICEBERG_SPARK_RUNTIME)" \
 	CATALOG="$(CATALOG)" \
 	TABLE_SPECS="$(TABLE_SPECS)" \
-	uv run python scripts/create_polaris_table.py
+	uv run python -m scripts.create_polaris_table
 
 
 list-spark-tables:
-	@POLARIS_URL="$(POLARIS_URL)" \
+	@PYTHONPATH="$(CURDIR)" \
+	POLARIS_URL="$(POLARIS_URL)" \
 	POLARIS_CLIENT_ID="$(POLARIS_CLIENT_ID)" \
 	POLARIS_CLIENT_SECRET="$(POLARIS_CLIENT_SECRET)" \
 	POLARIS_REALM="$(POLARIS_REALM)" \
@@ -221,7 +227,7 @@ list-spark-tables:
 	ICEBERG_VERSION="$(ICEBERG_VERSION)" \
 	ICEBERG_SPARK_RUNTIME="$(ICEBERG_SPARK_RUNTIME)" \
 	CATALOG="$(CATALOG)" \
-	uv run python scripts/list_polaris_tables.py
+	uv run python -m scripts.list_polaris_tables
 
 
 table-health:
@@ -266,3 +272,36 @@ table-health:
 			merge_mode: .metadata.properties."write.merge.mode" \
 		}' "$$tmp_file"; \
 	rm -f "$$tmp_file"
+
+
+scan-table-health:
+	@PYTHONPATH="$(CURDIR)" \
+	POLARIS_URL="$(POLARIS_URL)" \
+	POLARIS_CLIENT_ID="$(POLARIS_CLIENT_ID)" \
+	POLARIS_CLIENT_SECRET="$(POLARIS_CLIENT_SECRET)" \
+	POLARIS_REALM="$(POLARIS_REALM)" \
+	MINIO_URL="$(MINIO_URL)" \
+	MINIO_ACCESS_KEY="$(MINIO_ACCESS_KEY)" \
+	MINIO_SECRET_KEY="$(MINIO_SECRET_KEY)" \
+	ICEBERG_VERSION="$(ICEBERG_VERSION)" \
+	ICEBERG_SPARK_RUNTIME="$(ICEBERG_SPARK_RUNTIME)" \
+	CATALOG="$(CATALOG)" \
+	TABLE_SPECS="$(TABLE_SPECS)" \
+	uv run python -m agent.src.collect_table_health
+
+
+plan-table-maintenance:
+	@PYTHONPATH="$(CURDIR)" \
+	POLARIS_URL="$(POLARIS_URL)" \
+	POLARIS_CLIENT_ID="$(POLARIS_CLIENT_ID)" \
+	POLARIS_CLIENT_SECRET="$(POLARIS_CLIENT_SECRET)" \
+	POLARIS_REALM="$(POLARIS_REALM)" \
+	MINIO_URL="$(MINIO_URL)" \
+	MINIO_ACCESS_KEY="$(MINIO_ACCESS_KEY)" \
+	MINIO_SECRET_KEY="$(MINIO_SECRET_KEY)" \
+	ICEBERG_VERSION="$(ICEBERG_VERSION)" \
+	ICEBERG_SPARK_RUNTIME="$(ICEBERG_SPARK_RUNTIME)" \
+	CATALOG="$(CATALOG)" \
+	TABLE_SPECS="$(TABLE_SPECS)" \
+	OPENAI_MODEL="$(OPENAI_MODEL)" \
+	uv run python -m agent.src.plan_table_maintenance
